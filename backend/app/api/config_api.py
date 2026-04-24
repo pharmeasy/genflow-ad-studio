@@ -1,6 +1,8 @@
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+
+from app.config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -21,4 +23,13 @@ async def get_script_config() -> dict:
         },
         "ad_tones": AD_TONES,
         "transition_types": TRANSITION_TYPES,
+    }
+
+
+@router.post("/video")
+async def get_video_config(settings: Settings = Depends(get_settings)) -> dict:
+    """Return video generation configuration (Veo models, defaults)."""
+    return {
+        "veo_models": [m.model_dump() for m in settings.veo_models],
+        "default_veo_model": settings.veo_model,
     }

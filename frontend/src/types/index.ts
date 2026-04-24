@@ -318,3 +318,14 @@ export interface GeminiModelOption {
   label: string;
   description: string;
 }
+
+export interface VeoModelOption {
+  id: string;
+  label: string;
+  description: string;
+}
+
+export interface VideoConfig {
+  veo_models: VeoModelOption[];
+  default_veo_model: string;
+}
