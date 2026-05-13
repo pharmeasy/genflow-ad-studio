@@ -21,7 +21,8 @@ export const ETHNICITIES = [
 export const AGE_RANGES = ['18-25', '25-35', '35-45', '45-55', '55+'];
 
 // ─── Veo Models (Video Generation) ──────────────────────────
-export const VEO_MODELS = [
+// Fallback used until backend config is loaded
+export const VEO_MODELS_FALLBACK = [
   { id: 'veo-3.1-generate-preview', label: 'Veo 3.1 Preview', description: 'Standard — Best quality' },
   { id: 'veo-3.1-fast-generate-preview', label: 'Veo 3.1 Fast Preview', description: 'Faster generation' },
 ];

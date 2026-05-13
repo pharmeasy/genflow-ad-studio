@@ -14,6 +14,7 @@ import type {
   Job,
   VideoScript,
   ScriptConfig,
+  VideoConfig,
   ImageUploadResponse,
   GenerateImageResponse,
   AnalyzeImageResponse,
@@ -37,6 +38,10 @@ export async function updateScript(
 
 export async function getScriptConfig(): Promise<ScriptConfig> {
   return api.post<ScriptConfig>('/config/script');
+}
+
+export async function getVideoConfig(): Promise<VideoConfig> {
+  return api.post<VideoConfig>('/config/video');
 }
 
 export async function generateAvatars(

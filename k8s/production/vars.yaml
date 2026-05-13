@@ -1,0 +1,49 @@
+env: production
+project_name: genflow-ad-studio
+prefix: prod
+namespace: "{{ prefix }}-genflow"
+tag: "{{ prefix }}-{{ git_commit[0:10] }}"
+context: genflow-production
+domain: "genflow.internal"
+domain_regex: 'genflow\.internal'
+container_identifier: "{{ prefix }}-{{ project_name }}"
+revision_history_limit: 10
+image_repo: "127603365779.dkr.ecr.ap-south-1.amazonaws.com/genflow-ad-studio"
+
+configs:
+  app:
+    identifier: "{{ prefix }}-{{ project_name }}"
+    fqdn: "({{ prefix }}\\.|)genflow\\.internal"
+    liveness_fqdn_header: "genflow.internal"
+    workload_type: "general"
+    min_replicas: 2
+    max_replicas: 10
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+    hpa:
+      cpu_average_utilization: 75
+      memory_average_utilization: 75
+    env:
+      PROJECT_ID: "your-gcp-project-id"
+      REGION: "us-central1"
+      GCS_BUCKET_NAME: "genflow-production-output"
+      GEMINI_MODEL: "gemini-3-flash-preview"
+      GEMINI_FLASH_MODEL: "gemini-3-flash-preview"
+      IMAGE_MODEL: "gemini-3-pro-image-preview"
+      VEO_MODEL_ID: "veo-3.1-generate-preview"
+      VEO_MODELS: '[{"id":"veo-3.1-generate-preview","label":"Veo 3.1 Preview","description":"Standard — Best quality"},{"id":"veo-3.1-fast-generate-preview","label":"Veo 3.1 Fast Preview","description":"Faster generation"}]'
+      OUTPUT_DIR: "/app/output"
+      STORYBOARD_QC_THRESHOLD: "60"
+      VIDEO_QC_THRESHOLD: "6"
+      SCRIPT_DEFAULT_SCENE_COUNT: "3"
+      MAX_REGEN_ATTEMPTS: "3"
+      MAX_VIDEO_VARIANTS: "4"
+      MAX_CONCURRENT_SCENES: "5"
+    storage:
+      size: 50Gi
+      storage_class: "ssd"

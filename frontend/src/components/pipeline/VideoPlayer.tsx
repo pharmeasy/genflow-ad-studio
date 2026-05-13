@@ -33,9 +33,10 @@ import type { SelectChangeEvent } from '@mui/material';
 import { ArrowForward, EmojiEvents, CheckCircle, Refresh, ExpandMore, ExpandLess, ChevronLeft, ChevronRight } from '@mui/icons-material';
 import QCBadge from '../qc/QCBadge';
 import QCDetailPanel from '../qc/QCDetailPanel';
-import type { VideoResult, VideoGenerateOptions } from '../../types';
+import type { VideoResult, VideoGenerateOptions, VeoModelOption } from '../../types';
 import { usePipelineStore } from '../../store/pipelineStore';
-import { VEO_MODELS, DEFAULT_NUM_VIDEO_VARIANTS, DEFAULT_VIDEO_QC_THRESHOLD, DEFAULT_MAX_VIDEO_QC_REGEN } from '../../constants/controls';
+import { VEO_MODELS_FALLBACK, DEFAULT_NUM_VIDEO_VARIANTS, DEFAULT_VIDEO_QC_THRESHOLD, DEFAULT_MAX_VIDEO_QC_REGEN } from '../../constants/controls';
+import { getVideoConfig } from '../../api/pipeline';
 import ModelBadge from '../common/ModelBadge';
 
 interface VideoPlayerProps {
@@ -114,9 +115,25 @@ export default function VideoPlayer({
   readOnly = false,
   totalScenes,
 }: VideoPlayerProps) {
+  // Veo models from backend config
+  const [veoModels, setVeoModels] = useState<VeoModelOption[]>(VEO_MODELS_FALLBACK);
+  const [veoModel, setVeoModel] = useState('');
+
+  useEffect(() => {
+    getVideoConfig()
+      .then((cfg) => {
+        if (cfg.veo_models.length > 0) {
+          setVeoModels(cfg.veo_models);
+        }
+        setVeoModel((prev) => prev || cfg.default_veo_model || cfg.veo_models[0]?.id || '');
+      })
+      .catch(() => {
+        setVeoModel((prev) => prev || VEO_MODELS_FALLBACK[0].id);
+      });
+  }, []);
+
   // Controls state
   const aspectRatio = usePipelineStore((s) => s.aspectRatio);
-  const [veoModel, setVeoModel] = useState('veo-3.1-generate-preview');
   const [duration, setDuration] = useState('8');
   const storeResolution = usePipelineStore((s) => s.veoResolution);
   const [resolution, setResolutionLocal] = useState(storeResolution);
@@ -169,7 +186,7 @@ export default function VideoPlayer({
           <Typography variant="h5" sx={{ fontWeight: 800, color: 'text.primary' }}>
             Video Generation
           </Typography>
-          <ModelBadge label={VEO_MODELS.find((m) => m.id === veoModel)?.label} />
+          <ModelBadge label={veoModels.find((m) => m.id === veoModel)?.label} />
         </Box>
         {onSelectVariant && !readOnly && results.length > 0 && (
           <Typography variant="body2" color="text.secondary">
@@ -195,7 +212,7 @@ export default function VideoPlayer({
                     value={veoModel}
                     onChange={(e: SelectChangeEvent) => setVeoModel(e.target.value)}
                   >
-                    {VEO_MODELS.map((m) => (
+                    {veoModels.map((m) => (
                       <MenuItem key={m.id} value={m.id}>
                         {m.label} — {m.description}
                       </MenuItem>
