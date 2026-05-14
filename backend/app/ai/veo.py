@@ -1,11 +1,14 @@
 import asyncio
 import logging
+import uuid
+from pathlib import Path
 
 from google import genai
 from google.genai import types
 
 from app.ai.prompts import VIDEO_NEGATIVE_PROMPT
 from app.ai.retry import async_retry
+from app.ai.video_provider import VideoGenerationOutput, VideoProvider
 from app.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -181,3 +184,88 @@ class VeoService:
             )
 
         return video_uris
+
+
+class VeoProvider(VideoProvider):
+    """VideoProvider implementation that wraps VeoService + GCS upload/download."""
+
+    def __init__(self, veo: "VeoService", gcs, settings: Settings):
+        self.veo = veo
+        self.gcs = gcs
+        self.settings = settings
+
+    @property
+    def provider_name(self) -> str:
+        return "Veo"
+
+    async def generate_videos(
+        self,
+        prompt: str,
+        storyboard_image_path: str,
+        asset_image_paths: list[str] | None,
+        output_dir: str,
+        num_variants: int = 1,
+        seed: int | None = None,
+        resolution: str = "720p",
+        aspect_ratio: str = "9:16",
+        duration_seconds: int = 8,
+        generate_audio: bool = True,
+        negative_prompt: str = "",
+        model_id: str | None = None,
+        compression_quality: str = "optimized",
+        use_reference_images: bool = True,
+    ) -> VideoGenerationOutput:
+        batch_id = uuid.uuid4().hex[:12]
+
+        # Upload storyboard to GCS
+        gcs_storyboard = await asyncio.to_thread(
+            self.gcs.upload_file,
+            storyboard_image_path,
+            f"tmp/veo/{batch_id}/storyboard.png",
+        )
+
+        # Upload asset reference images to GCS
+        asset_gcs_uris: list[str] | None = None
+        if use_reference_images and asset_image_paths:
+            uploads = await asyncio.gather(*(
+                asyncio.to_thread(
+                    self.gcs.upload_file,
+                    path,
+                    f"tmp/veo/{batch_id}/asset_{i}.png",
+                )
+                for i, path in enumerate(asset_image_paths)
+            ))
+            asset_gcs_uris = list(uploads)
+
+        output_gcs_uri = f"gs://{self.gcs.bucket_name}/tmp/veo/{batch_id}/output/"
+
+        # Call Veo API
+        video_gcs_uris = await self.veo.generate_videos(
+            prompt=prompt,
+            reference_image_uri=gcs_storyboard,
+            output_gcs_uri=output_gcs_uri,
+            num_variants=num_variants,
+            seed=seed,
+            resolution=resolution,
+            negative_prompt_extra=negative_prompt,
+            asset_image_uris=asset_gcs_uris,
+            aspect_ratio=aspect_ratio,
+            duration_seconds=duration_seconds,
+            compression_quality=compression_quality,
+            veo_model=model_id,
+            generate_audio=generate_audio,
+        )
+
+        # Download all variants from GCS to local output_dir
+        out = Path(output_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        local_paths: list[str] = []
+        for i, gcs_uri in enumerate(video_gcs_uris):
+            local_path = str(out / f"variant_{i}.mp4")
+            await asyncio.to_thread(self.gcs.download_to_local, gcs_uri, local_path)
+            local_paths.append(local_path)
+
+        return VideoGenerationOutput(
+            local_paths=local_paths,
+            remote_uris=video_gcs_uris,
+        )

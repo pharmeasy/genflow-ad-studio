@@ -13,6 +13,7 @@ from app.dependencies import (
     get_storyboard_service,
     get_task_runner,
     get_video_service,
+    get_video_provider,
 )
 from app.jobs.events import SSEBroadcaster
 from app.jobs.runner import TaskRunner
@@ -266,11 +267,12 @@ async def regen_storyboard_scene(
 @router.post("/video")
 async def generate_video(
     request: VideoRequest,
-    video_svc: VideoService = Depends(get_video_service),
     job_store: JobStore = Depends(get_job_store),
     broadcaster: SSEBroadcaster = Depends(get_broadcaster),
 ) -> VideoResponse:
     """Generate video variants with QC and auto-selection."""
+    # Route to the correct provider based on model ID
+    video_svc = get_video_service(request.video_model)
     token = pipeline_run_id.set(request.run_id)
     try:
         def on_progress(data: dict) -> None:
@@ -285,7 +287,7 @@ async def generate_video(
             on_progress=on_progress,
             seed=request.seed,
             resolution=request.resolution,
-            veo_model=request.veo_model,
+            video_model=request.video_model,
             aspect_ratio=request.aspect_ratio,
             duration_seconds=request.duration_seconds,
             num_variants=request.num_variants,
@@ -311,10 +313,10 @@ async def generate_video(
 @router.post("/video/regen-scene")
 async def regen_video_scene(
     request: VideoRegenRequest,
-    video_svc: VideoService = Depends(get_video_service),
     job_store: JobStore = Depends(get_job_store),
 ) -> dict:
     """Regenerate video for a single scene."""
+    video_svc = get_video_service(request.video_model)
     token = pipeline_run_id.set(request.run_id)
     try:
         result = await video_svc.regenerate_single_scene(
@@ -324,7 +326,7 @@ async def regen_video_scene(
             avatar_profile=request.avatar_profile,
             seed=request.seed,
             resolution=request.resolution,
-            veo_model=request.veo_model,
+            video_model=request.video_model,
             aspect_ratio=request.aspect_ratio,
             duration_seconds=request.duration_seconds,
             num_variants=request.num_variants,

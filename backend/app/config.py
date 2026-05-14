@@ -5,10 +5,14 @@ from pydantic import AliasChoices, BaseModel, Field
 from pydantic_settings import BaseSettings
 
 
-class VeoModelOption(BaseModel):
+class VideoModelOption(BaseModel):
     id: str
     label: str
     description: str
+
+
+# Backward-compatible alias
+VeoModelOption = VideoModelOption
 
 
 def _find_env_file() -> str | None:
@@ -44,15 +48,32 @@ class Settings(BaseSettings):
     veo_fast_model: str = "veo-3.1-fast-generate-001"
     imagen_model: str = "imagen-4.0-generate-001"
 
-    veo_models: list[VeoModelOption] = [
-        VeoModelOption(
+    veo_models: list[VideoModelOption] = [
+        VideoModelOption(
             id="veo-3.1-generate-preview",
             label="Veo 3.1 Preview",
             description="Standard — Best quality",
         ),
-        VeoModelOption(
+        VideoModelOption(
             id="veo-3.1-fast-generate-preview",
             label="Veo 3.1 Fast Preview",
+            description="Faster generation",
+        ),
+    ]
+
+    # Seedance 2.0 (ByteDance) settings
+    seedance_api_key: str = ""
+    seedance_api_base_url: str = "https://api.byteplusapi.com"
+    seedance_model: str = "seedance-2-0-260128"
+    seedance_models: list[VideoModelOption] = [
+        VideoModelOption(
+            id="seedance-2-0-260128",
+            label="Seedance 2.0",
+            description="Standard — Best quality",
+        ),
+        VideoModelOption(
+            id="seedance-2-0-fast-260128",
+            label="Seedance 2.0 Fast",
             description="Faster generation",
         ),
     ]

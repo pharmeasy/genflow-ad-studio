@@ -168,7 +168,7 @@ export interface VideoResult {
 export interface VideoGenerateOptions {
   seed?: number;
   resolution?: string;
-  veo_model?: string;
+  video_model?: string;
   aspect_ratio?: string;
   duration_seconds?: number;
   num_variants?: number;
@@ -188,7 +188,7 @@ export interface VideoRegenRequest {
   avatar_profile: AvatarProfile;
   seed?: number;
   resolution?: string;
-  veo_model?: string;
+  video_model?: string;
   aspect_ratio?: string;
   duration_seconds?: number;
   num_variants?: number;
@@ -322,13 +322,19 @@ export interface GeminiModelOption {
   description: string;
 }
 
-export interface VeoModelOption {
+export interface VideoModelOption {
   id: string;
   label: string;
   description: string;
 }
 
+// Backward-compatible alias
+export type VeoModelOption = VideoModelOption;
+
 export interface VideoConfig {
-  veo_models: VeoModelOption[];
+  video_models: VideoModelOption[];
+  default_video_model: string;
+  // Backward-compatible fields
+  veo_models: VideoModelOption[];
   default_veo_model: string;
 }

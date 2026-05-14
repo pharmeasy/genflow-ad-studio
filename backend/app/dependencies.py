@@ -6,7 +6,9 @@ from google.cloud import storage
 from app.ai.gemini import GeminiService
 from app.ai.gemini_image import GeminiImageService
 from app.ai.imagen import ImagenService
-from app.ai.veo import VeoService
+from app.ai.seedance import SeedanceProvider
+from app.ai.veo import VeoProvider, VeoService
+from app.ai.video_provider import VideoProvider
 from app.config import Settings
 from app.config import get_settings as _get_settings
 from app.db import Database
@@ -131,6 +133,30 @@ def get_veo_service() -> VeoService:
     return VeoService(client=get_genai_client(), settings=get_settings())
 
 
+@lru_cache
+def get_veo_provider() -> VeoProvider:
+    return VeoProvider(
+        veo=get_veo_service(),
+        gcs=get_gcs_storage(),
+        settings=get_settings(),
+    )
+
+
+@lru_cache
+def get_seedance_provider() -> SeedanceProvider:
+    return SeedanceProvider(settings=get_settings())
+
+
+def get_video_provider(model_id: str | None = None) -> VideoProvider:
+    """Return the appropriate VideoProvider based on model ID prefix.
+
+    Seedance models start with "seedance-"; everything else routes to Veo.
+    """
+    if model_id and model_id.startswith("seedance"):
+        return get_seedance_provider()
+    return get_veo_provider()
+
+
 # ---------------------------------------------------------------------------
 # Application services
 # ---------------------------------------------------------------------------
@@ -179,10 +205,10 @@ def get_storyboard_service() -> StoryboardService:
     )
 
 
-@lru_cache
-def get_video_service() -> VideoService:
+def get_video_service(video_model: str | None = None) -> VideoService:
+    """Create a VideoService with the appropriate provider for the given model."""
     return VideoService(
-        veo=get_veo_service(),
+        video_provider=get_video_provider(video_model),
         gcs=get_gcs_storage(),
         qc=get_qc_service(),
         storage=get_local_storage(),

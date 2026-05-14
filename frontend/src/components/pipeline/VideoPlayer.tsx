@@ -33,9 +33,9 @@ import type { SelectChangeEvent } from '@mui/material';
 import { ArrowForward, EmojiEvents, CheckCircle, Refresh, ExpandMore, ExpandLess, ChevronLeft, ChevronRight } from '@mui/icons-material';
 import QCBadge from '../qc/QCBadge';
 import QCDetailPanel from '../qc/QCDetailPanel';
-import type { VideoResult, VideoGenerateOptions, VeoModelOption } from '../../types';
+import type { VideoResult, VideoGenerateOptions, VideoModelOption } from '../../types';
 import { usePipelineStore } from '../../store/pipelineStore';
-import { VEO_MODELS_FALLBACK, DEFAULT_NUM_VIDEO_VARIANTS, DEFAULT_VIDEO_QC_THRESHOLD, DEFAULT_MAX_VIDEO_QC_REGEN } from '../../constants/controls';
+import { VIDEO_MODELS_FALLBACK, DEFAULT_NUM_VIDEO_VARIANTS, DEFAULT_VIDEO_QC_THRESHOLD, DEFAULT_MAX_VIDEO_QC_REGEN } from '../../constants/controls';
 import { getVideoConfig } from '../../api/pipeline';
 import ModelBadge from '../common/ModelBadge';
 
@@ -66,7 +66,7 @@ function getOverallScore(report: NonNullable<import('../../types').VideoQCReport
 }
 
 function buildOptions(controls: {
-  veoModel: string;
+  videoModel: string;
   aspectRatio: string;
   duration: string;
   resolution: string;
@@ -90,8 +90,8 @@ function buildOptions(controls: {
     max_qc_regen_attempts: controls.maxQcRegen,
     generate_audio: controls.generateAudio,
   };
-  if (controls.veoModel) {
-    opts.veo_model = controls.veoModel;
+  if (controls.videoModel) {
+    opts.video_model = controls.videoModel;
   }
   if (controls.negativePrompt.trim()) {
     opts.negative_prompt_extra = controls.negativePrompt.trim();
@@ -115,20 +115,21 @@ export default function VideoPlayer({
   readOnly = false,
   totalScenes,
 }: VideoPlayerProps) {
-  // Veo models from backend config
-  const [veoModels, setVeoModels] = useState<VeoModelOption[]>(VEO_MODELS_FALLBACK);
-  const [veoModel, setVeoModel] = useState('');
+  // Video models from backend config
+  const [videoModels, setVideoModels] = useState<VideoModelOption[]>(VIDEO_MODELS_FALLBACK);
+  const [videoModel, setVideoModel] = useState('');
 
   useEffect(() => {
     getVideoConfig()
       .then((cfg) => {
-        if (cfg.veo_models.length > 0) {
-          setVeoModels(cfg.veo_models);
+        const models = cfg.video_models ?? cfg.veo_models;
+        if (models.length > 0) {
+          setVideoModels(models);
         }
-        setVeoModel((prev) => prev || cfg.default_veo_model || cfg.veo_models[0]?.id || '');
+        setVideoModel((prev) => prev || cfg.default_video_model || cfg.default_veo_model || models[0]?.id || '');
       })
       .catch(() => {
-        setVeoModel((prev) => prev || VEO_MODELS_FALLBACK[0].id);
+        setVideoModel((prev) => prev || VIDEO_MODELS_FALLBACK[0].id);
       });
   }, []);
 
@@ -164,7 +165,7 @@ export default function VideoPlayer({
   }, [requires8s, duration]);
 
   const controlValues = {
-    veoModel,
+    videoModel,
     aspectRatio,
     duration,
     resolution,
@@ -186,7 +187,7 @@ export default function VideoPlayer({
           <Typography variant="h5" sx={{ fontWeight: 800, color: 'text.primary' }}>
             Video Generation
           </Typography>
-          <ModelBadge label={veoModels.find((m) => m.id === veoModel)?.label} />
+          <ModelBadge label={videoModels.find((m) => m.id === videoModel)?.label} />
         </Box>
         {onSelectVariant && !readOnly && results.length > 0 && (
           <Typography variant="body2" color="text.secondary">
@@ -202,17 +203,17 @@ export default function VideoPlayer({
             {/* Row 1: Veo model, Aspect ratio chip, Duration */}
             <Grid container spacing={2} sx={{ alignItems: 'center' }}>
               <Grid size={{ xs: 12, sm: 4 }}>
-                <Tooltip title="Preview models support reference images for character consistency. GA models are production-stable." placement="top" arrow>
+                <Tooltip title="Select the video generation model. Veo models support reference images for character consistency. Seedance models support multi-modal references." placement="top" arrow>
                   <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block', cursor: 'help' }}>
-                    Veo Model
+                    Video Model
                   </Typography>
                 </Tooltip>
                 <FormControl size="small" fullWidth>
                   <Select
-                    value={veoModel}
-                    onChange={(e: SelectChangeEvent) => setVeoModel(e.target.value)}
+                    value={videoModel}
+                    onChange={(e: SelectChangeEvent) => setVideoModel(e.target.value)}
                   >
-                    {veoModels.map((m) => (
+                    {videoModels.map((m) => (
                       <MenuItem key={m.id} value={m.id}>
                         {m.label} — {m.description}
                       </MenuItem>

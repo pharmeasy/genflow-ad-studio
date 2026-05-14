@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 from app.models.script import AvatarProfile, Scene
 from app.models.storyboard import StoryboardResult
@@ -11,9 +11,12 @@ class VideoRequest(BaseModel):
     avatar_profile: AvatarProfile
     seed: int | None = None
     resolution: str = "720p"
-    veo_model: str | None = None
+    video_model: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("video_model", "veo_model"),
+    )
     aspect_ratio: str = "9:16"
-    duration_seconds: int = Field(default=8, ge=4, le=8)
+    duration_seconds: int = Field(default=8, ge=4, le=15)
     num_variants: int = Field(default=4, ge=1, le=4)
     compression_quality: str = "optimized"
     qc_threshold: int = Field(default=6, ge=0, le=10)
@@ -70,9 +73,12 @@ class VideoRegenRequest(BaseModel):
     avatar_profile: AvatarProfile
     seed: int | None = None
     resolution: str = "720p"
-    veo_model: str | None = None
+    video_model: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("video_model", "veo_model"),
+    )
     aspect_ratio: str = "9:16"
-    duration_seconds: int = Field(default=8, ge=4, le=8)
+    duration_seconds: int = Field(default=8, ge=4, le=15)
     num_variants: int = Field(default=4, ge=1, le=4)
     compression_quality: str = "optimized"
     qc_threshold: int = Field(default=6, ge=0, le=10)
