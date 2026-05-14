@@ -122,11 +122,10 @@ export default function VideoPlayer({
   useEffect(() => {
     getVideoConfig()
       .then((cfg) => {
-        const models = cfg.video_models ?? cfg.veo_models;
-        if (models.length > 0) {
-          setVideoModels(models);
+        if (cfg.video_models.length > 0) {
+          setVideoModels(cfg.video_models);
         }
-        setVideoModel((prev) => prev || cfg.default_video_model || cfg.default_veo_model || models[0]?.id || '');
+        setVideoModel((prev) => prev || cfg.default_video_model || cfg.video_models[0]?.id || '');
       })
       .catch(() => {
         setVideoModel((prev) => prev || VIDEO_MODELS_FALLBACK[0].id);

@@ -108,7 +108,7 @@ class VeoService:
         if seed is not None:
             config_kwargs["seed"] = seed
 
-        model_id = veo_model or self.settings.veo_model
+        model_id = veo_model or self.settings.default_video_model
 
         # Veo API: `image` and `reference_images` are mutually exclusive.
         # When asset references are provided, use reference_images for

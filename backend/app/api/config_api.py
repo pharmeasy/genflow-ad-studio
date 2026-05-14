@@ -29,16 +29,11 @@ async def get_script_config() -> dict:
 @router.post("/video")
 async def get_video_config(settings: Settings = Depends(get_settings)) -> dict:
     """Return video generation configuration (all video models, defaults)."""
-    # Merge Veo + Seedance models into a single list
     all_models = [m.model_dump() for m in settings.veo_models]
     if settings.seedance_api_key:
         all_models.extend(m.model_dump() for m in settings.seedance_models)
 
     return {
-        # New unified fields
         "video_models": all_models,
-        "default_video_model": settings.veo_model,
-        # Backward-compatible fields
-        "veo_models": all_models,
-        "default_veo_model": settings.veo_model,
+        "default_video_model": settings.default_video_model,
     }

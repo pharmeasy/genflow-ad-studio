@@ -328,13 +328,7 @@ export interface VideoModelOption {
   description: string;
 }
 
-// Backward-compatible alias
-export type VeoModelOption = VideoModelOption;
-
 export interface VideoConfig {
   video_models: VideoModelOption[];
   default_video_model: string;
-  // Backward-compatible fields
-  veo_models: VideoModelOption[];
-  default_veo_model: string;
 }

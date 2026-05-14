@@ -29,9 +29,6 @@ export const VIDEO_MODELS_FALLBACK = [
   { id: 'seedance-2-0-fast-260128', label: 'Seedance 2.0 Fast', description: 'Faster generation' },
 ];
 
-// Backward-compatible alias
-export const VEO_MODELS_FALLBACK = VIDEO_MODELS_FALLBACK;
-
 // ─── Image Resolutions ──────────────────────────────────────
 export const IMAGE_RESOLUTIONS = ['1K', '2K', '4K'] as const;
 

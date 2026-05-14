@@ -50,7 +50,7 @@ class SeedanceProvider(VideoProvider):
         self.settings = settings
         self.api_key = settings.seedance_api_key
         self.base_url = settings.seedance_api_base_url.rstrip("/")
-        self.default_model = settings.seedance_model
+        self.default_model = settings.default_seedance_model
         self._poll_interval = 20  # seconds between status checks
 
     @property
