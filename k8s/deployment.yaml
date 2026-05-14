@@ -71,6 +71,12 @@ spec:
           env:
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: "/var/secrets/gcp/key.json"
+            - name: SEEDANCE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ configs.app.identifier }}-gcp-key
+                  key: seedance-api-key
+                  optional: true
           readinessProbe:
             httpGet:
               path: /api/v1/health
