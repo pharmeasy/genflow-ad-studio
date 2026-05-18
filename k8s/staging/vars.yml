@@ -2,10 +2,10 @@ env: staging
 project_name: genflow-ad-studio
 prefix: staging
 namespace: "{{ prefix }}-genflow"
-tag: staging
+tag: "staging"
 context: genflow-staging
-domain: "staging.genflow.internal"
-domain_regex: 'staging\.genflow\.internal'
+domain: "staging.genflow.net"
+domain_regex: 'staging\.genflow\.net'
 container_identifier: "{{ prefix }}-{{ project_name }}"
 revision_history_limit: 3
 image_repo: "127603365779.dkr.ecr.ap-south-1.amazonaws.com/genflow-ad-studio"
@@ -13,8 +13,8 @@ image_repo: "127603365779.dkr.ecr.ap-south-1.amazonaws.com/genflow-ad-studio"
 configs:
   app:
     identifier: "{{ prefix }}-{{ project_name }}"
-    fqdn: "{{ prefix }}\\.genflow\\.internal"
-    liveness_fqdn_header: "{{ prefix }}.genflow.internal"
+    fqdn: "{{ prefix }}\\.genflow\\.net"
+    liveness_fqdn_header: "{{ prefix }}.genflow.net"
     workload_type: "general"
     min_replicas: 1
     max_replicas: 2
