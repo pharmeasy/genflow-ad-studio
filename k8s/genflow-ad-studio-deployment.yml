@@ -24,9 +24,11 @@ data:
   REGION: "us-central1"
   SCRIPT_DEFAULT_SCENE_COUNT: "3"
   SEEDANCE_API_BASE_URL: "https://api.byteplusapi.com"
-  SEEDANCE_MODELS: '[{"id":"seedance-2-0-260128","label":"Seedance 2.0","description":"Standard — Best quality"},{"id":"seedance-2-0-fast-260128","label":"Seedance 2.0 Fast","description":"Faster generation"}]'
+  SEEDANCE_MODELS: >-
+    [{"id":"seedance-2-0-260128","label":"Seedance 2.0","description":"Standard — Best quality"},{"id":"seedance-2-0-fast-260128","label":"Seedance 2.0 Fast","description":"Faster generation"}]
   STORYBOARD_QC_THRESHOLD: "60"
-  VEO_MODELS: '[{"id":"veo-3.1-generate-preview","label":"Veo 3.1 Preview","description":"Standard — Best quality"},{"id":"veo-3.1-fast-generate-preview","label":"Veo 3.1 Fast Preview","description":"Faster generation"}]'
+  VEO_MODELS: >-
+    [{"id":"veo-3.1-generate-preview","label":"Veo 3.1 Preview","description":"Standard — Best quality"},{"id":"veo-3.1-fast-generate-preview","label":"Veo 3.1 Fast Preview","description":"Faster generation"}]
   VIDEO_QC_THRESHOLD: "6"
 ---
 apiVersion: v1
