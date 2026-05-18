@@ -13,7 +13,7 @@ metadata:
     k8s-app: {{ configs.app.identifier }}
 data:
 {% for key, value in configs.app.env.items() %}
-  {{ key }}: "{{ value }}"
+  {{ key }}: {{ value | to_json }}
 {% endfor %}
 ---
 apiVersion: v1
