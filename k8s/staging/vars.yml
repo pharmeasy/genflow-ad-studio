@@ -2,7 +2,7 @@ env: staging
 project_name: genflow-ad-studio
 prefix: staging
 namespace: "{{ prefix }}-genflow"
-tag: staging
+tag: "staging-{{ git_commit[0:10] }}"
 context: genflow-staging
 domain: "staging.genflow.net"
 domain_regex: 'staging\.genflow\.net'
