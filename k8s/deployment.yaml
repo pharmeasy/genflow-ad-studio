@@ -117,8 +117,6 @@ spec:
         - name: gcp-credentials
           secret:
             secretName: {{ configs.app.identifier }}-gcp-key
-      nodeSelector:
-        workloadType: {{ configs.app.workload_type }}
 ---
 apiVersion: v1
 kind: Service
