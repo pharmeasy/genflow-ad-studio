@@ -13,7 +13,7 @@ image_repo: "127603365779.dkr.ecr.ap-south-1.amazonaws.com/genflow-ad-studio"
 configs:
   app:
     identifier: "{{ prefix }}-{{ project_name }}"
-    fqdn: "{{ prefix }}\\.genflow\\.internal"
+    fqdn: "{{ prefix }}\\.genflow\\.net"
     liveness_fqdn_header: "{{ prefix }}.genflow.internal"
     workload_type: "general"
     min_replicas: 1
