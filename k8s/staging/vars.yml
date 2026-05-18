@@ -2,10 +2,10 @@ env: staging
 project_name: genflow-ad-studio
 prefix: staging
 namespace: "{{ prefix }}-genflow"
-tag: staging
+tag: "{{ prefix }}-{{ build_number }}"
 context: genflow-staging
-domain: "staging.genflow.internal"
-domain_regex: 'staging\.genflow\.internal'
+domain: "staging.genflow.net"
+domain_regex: 'staging\.genflow\.net'
 container_identifier: "{{ prefix }}-{{ project_name }}"
 revision_history_limit: 3
 image_repo: "127603365779.dkr.ecr.ap-south-1.amazonaws.com/genflow-ad-studio"
@@ -13,8 +13,8 @@ image_repo: "127603365779.dkr.ecr.ap-south-1.amazonaws.com/genflow-ad-studio"
 configs:
   app:
     identifier: "{{ prefix }}-{{ project_name }}"
-    fqdn: "{{ prefix }}\\.genflow\\.internal"
-    liveness_fqdn_header: "{{ prefix }}.genflow.internal"
+    fqdn: "{{ prefix }}\\.genflow\\.net"
+    liveness_fqdn_header: "{{ prefix }}.genflow.net"
     workload_type: "general"
     min_replicas: 1
     max_replicas: 2
@@ -35,8 +35,9 @@ configs:
       GEMINI_MODEL: "gemini-3-flash-preview"
       GEMINI_FLASH_MODEL: "gemini-3-flash-preview"
       IMAGE_MODEL: "gemini-3-pro-image-preview"
-      VEO_MODEL_ID: "veo-3.1-generate-preview"
       VEO_MODELS: '[{"id":"veo-3.1-generate-preview","label":"Veo 3.1 Preview","description":"Standard — Best quality"},{"id":"veo-3.1-fast-generate-preview","label":"Veo 3.1 Fast Preview","description":"Faster generation"}]'
+      SEEDANCE_API_BASE_URL: "https://api.byteplusapi.com"
+      SEEDANCE_MODELS: '[{"id":"seedance-2-0-260128","label":"Seedance 2.0","description":"Standard — Best quality"},{"id":"seedance-2-0-fast-260128","label":"Seedance 2.0 Fast","description":"Faster generation"}]'
       OUTPUT_DIR: "/app/output"
       STORYBOARD_QC_THRESHOLD: "60"
       VIDEO_QC_THRESHOLD: "6"

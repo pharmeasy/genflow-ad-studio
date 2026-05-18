@@ -4,7 +4,7 @@ import random
 from typing import Callable
 
 from app.ai.prompts import VIDEO_PROMPT_TEMPLATE_IMAGE, VIDEO_PROMPT_TEMPLATE_REFERENCE
-from app.ai.veo import VeoService
+from app.ai.video_provider import VideoProvider
 from app.config import Settings
 from app.models.script import AvatarProfile, Scene
 from app.models.storyboard import StoryboardResult
@@ -20,13 +20,13 @@ logger = logging.getLogger(__name__)
 class VideoService:
     def __init__(
         self,
-        veo: VeoService,
+        video_provider: VideoProvider,
         gcs: GCSStorage,
         qc: QCService,
         storage: LocalStorage,
         settings: Settings,
     ):
-        self.veo = veo
+        self.video_provider = video_provider
         self.gcs = gcs
         self.qc = qc
         self.storage = storage
@@ -42,7 +42,7 @@ class VideoService:
         num_variants: int | None = None,
         seed: int | None = None,
         resolution: str = "720p",
-        veo_model: str | None = None,
+        video_model: str | None = None,
         aspect_ratio: str = "9:16",
         duration_seconds: int = 8,
         compression_quality: str = "optimized",
@@ -75,10 +75,9 @@ class VideoService:
         # Auto-generate seed for cross-scene consistency if none provided
         if seed is None:
             seed = random.randint(0, 2**31)
-            logger.info("Auto-generated Veo seed: %d", seed)
+            logger.info("Auto-generated video seed: %d", seed)
 
         effective_variants = num_variants or self.settings.max_video_variants
-        semaphore = asyncio.Semaphore(self.settings.max_concurrent_scenes)
 
         # Build a lookup from scene_number -> Scene
         scene_lookup = {s.scene_number: s for s in script_scenes}
@@ -88,7 +87,7 @@ class VideoService:
         # maintaining visual continuity across the ad.
         sorted_scenes = sorted(scenes_data, key=lambda s: s.scene_number)
         results: list[VideoResult] = []
-        prev_last_frame_gcs: str | None = None
+        prev_last_frame_path: str | None = None
 
         for sb_result in sorted_scenes:
             scene = scene_lookup[sb_result.scene_number]
@@ -101,7 +100,7 @@ class VideoService:
                 num_variants=effective_variants,
                 seed=seed,
                 resolution=resolution,
-                veo_model=veo_model,
+                video_model=video_model,
                 aspect_ratio=aspect_ratio,
                 duration_seconds=duration_seconds,
                 compression_quality=compression_quality,
@@ -109,7 +108,7 @@ class VideoService:
                 max_qc_regen_attempts=max_qc_regen_attempts,
                 use_reference_images=use_reference_images,
                 negative_prompt_extra=negative_prompt_extra,
-                prev_scene_last_frame_gcs=prev_last_frame_gcs,
+                prev_scene_last_frame_path=prev_last_frame_path,
                 generate_audio=generate_audio,
             )
             results.append(result)
@@ -127,20 +126,17 @@ class VideoService:
                     subdir=f"scenes/scene_{sb_result.scene_number}",
                 ))
                 await extract_last_frame(selected_video_local, last_frame_local)
-                gcs_path = f"pipeline/{run_id}/scenes/scene_{sb_result.scene_number}/last_frame.png"
-                prev_last_frame_gcs = await asyncio.to_thread(
-                    self.gcs.upload_file, last_frame_local, gcs_path,
-                )
+                prev_last_frame_path = last_frame_local
                 logger.info(
                     "Scene %d: extracted last frame → %s",
-                    sb_result.scene_number, prev_last_frame_gcs,
+                    sb_result.scene_number, last_frame_local,
                 )
             except Exception as exc:
                 logger.warning(
                     "Scene %d: failed to extract last frame: %s",
                     sb_result.scene_number, exc,
                 )
-                prev_last_frame_gcs = None
+                prev_last_frame_path = None
 
         return VideoResponse(results=results)
 
@@ -154,7 +150,7 @@ class VideoService:
         num_variants: int | None = None,
         seed: int | None = None,
         resolution: str = "720p",
-        veo_model: str | None = None,
+        video_model: str | None = None,
         aspect_ratio: str = "9:16",
         duration_seconds: int = 8,
         compression_quality: str = "optimized",
@@ -162,48 +158,35 @@ class VideoService:
         max_qc_regen_attempts: int = 2,
         use_reference_images: bool = True,
         negative_prompt_extra: str = "",
-        prev_scene_last_frame_gcs: str | None = None,
+        prev_scene_last_frame_path: str | None = None,
         generate_audio: bool = True,
         previous_qc_report: "VideoQCReport | None" = None,
     ) -> VideoResult:
-        """Process a single scene: upload to GCS, generate videos, QC, select best."""
+        """Process a single scene: generate videos via provider, QC, select best."""
         effective_variants = num_variants or self.settings.max_video_variants
         scene_num = sb_result.scene_number
 
-        # 1. Upload storyboard, product, and avatar images to GCS in parallel
+        # 1. Gather local paths for storyboard, product, and avatar images
         storyboard_local = str(self.storage.get_path(
             run_id, "storyboard.png", subdir=f"scenes/scene_{scene_num}",
         ))
-        gcs_storyboard_path = f"pipeline/{run_id}/scenes/scene_{scene_num}/storyboard.png"
 
         product_filename = self._find_product_image(run_id)
         product_local = str(self.storage.get_path(run_id, product_filename))
-        gcs_product_path = f"pipeline/{run_id}/product_image.png"
-
         avatar_local = str(self.storage.get_path(run_id, "avatar_selected.png"))
-        gcs_avatar_path = f"pipeline/{run_id}/avatar_selected.png"
 
-        storyboard_gcs_uri, product_gcs_uri, avatar_gcs_uri = await asyncio.gather(
-            asyncio.to_thread(self.gcs.upload_file, storyboard_local, gcs_storyboard_path),
-            asyncio.to_thread(self.gcs.upload_file, product_local, gcs_product_path),
-            asyncio.to_thread(self.gcs.upload_file, avatar_local, gcs_avatar_path),
-        )
-
-        # Build asset reference image list for Veo character/product consistency
-        # Max 3 asset references: avatar + product + previous scene last frame
-        asset_image_uris = None
+        # Build asset reference image list for character/product consistency
+        asset_image_paths: list[str] | None = None
         if use_reference_images:
-            asset_image_uris = [avatar_gcs_uri, product_gcs_uri]
-            if prev_scene_last_frame_gcs:
-                asset_image_uris.append(prev_scene_last_frame_gcs)
+            asset_image_paths = [avatar_local, product_local]
+            if prev_scene_last_frame_path:
+                asset_image_paths.append(prev_scene_last_frame_path)
                 logger.info(
                     "Scene %d: using previous scene last frame for continuity",
                     scene_num,
                 )
 
         # 2. Build video prompt — use mode-aware template
-        # When reference_images mode: full character description (no first-frame)
-        # When image mode: focus on motion (storyboard provides visual anchor)
         voice_style = (
             scene.voice_style
             or avatar_profile.voice_style
@@ -242,46 +225,52 @@ class VideoService:
         if negative_prompt_extra:
             scene_negative = f"{scene_negative}, {negative_prompt_extra}" if scene_negative else negative_prompt_extra
 
-        # 3. Generate video variants via Veo
-        output_gcs_uri = self.gcs.get_veo_output_uri(run_id) + f"scene_{scene_num}/"
-        video_gcs_uris = await self.veo.generate_videos(
+        # 3. Generate video variants via provider
+        output_dir = str(self.storage.get_path(
+            run_id, "", subdir=f"scenes/scene_{scene_num}/video_variants",
+        ))
+
+        gen_output = await self.video_provider.generate_videos(
             prompt=prompt,
-            reference_image_uri=storyboard_gcs_uri,
-            output_gcs_uri=output_gcs_uri,
+            storyboard_image_path=storyboard_local,
+            asset_image_paths=asset_image_paths,
+            output_dir=output_dir,
             num_variants=effective_variants,
             seed=seed,
             resolution=resolution,
-            negative_prompt_extra=scene_negative,
-            asset_image_uris=asset_image_uris,
+            negative_prompt=scene_negative,
             aspect_ratio=aspect_ratio,
             duration_seconds=duration_seconds,
             compression_quality=compression_quality,
-            veo_model=veo_model,
+            model_id=video_model,
             generate_audio=generate_audio,
+            use_reference_images=use_reference_images,
         )
 
-        # 4. Download all variants from GCS to local in parallel
-        local_paths = []
-        for i in range(len(video_gcs_uris)):
-            local_path = self.storage.get_path(
-                run_id,
-                f"variant_{i}.mp4",
-                subdir=f"scenes/scene_{scene_num}/video_variants",
-            )
-            local_path.parent.mkdir(parents=True, exist_ok=True)
-            local_paths.append(local_path)
-        await asyncio.gather(*(
-            asyncio.to_thread(self.gcs.download_to_local, uri, str(lp))
-            for uri, lp in zip(video_gcs_uris, local_paths)
-        ))
         variants: list[VideoVariant] = [
-            VideoVariant(index=i, video_path=self.storage.to_url_path(str(lp)))
-            for i, lp in enumerate(local_paths)
+            VideoVariant(index=i, video_path=self.storage.to_url_path(lp))
+            for i, lp in enumerate(gen_output.local_paths)
         ]
+
+        # 4. Prepare GCS URIs for QC
+        # If the provider returned remote URIs (e.g. Veo/GCS), use those.
+        # Otherwise upload local videos to GCS for Gemini-based QC.
+        video_qc_uris = gen_output.remote_uris
+        if not video_qc_uris:
+            video_qc_uris = await self._upload_videos_for_qc(
+                gen_output.local_paths, run_id, scene_num,
+            )
+
+        # Upload product image to GCS for QC reference
+        product_gcs_uri = await asyncio.to_thread(
+            self.gcs.upload_file,
+            product_local,
+            f"pipeline/{run_id}/product_image.png",
+        )
 
         # 5. Run QC on all variants in parallel
         qc_tasks = [
-            self.qc.qc_video(video_uri=video_gcs_uris[i], reference_uri=product_gcs_uri)
+            self.qc.qc_video(video_uri=video_qc_uris[i], reference_uri=product_gcs_uri)
             for i in range(len(variants))
         ]
         qc_results = await asyncio.gather(*qc_tasks, return_exceptions=True)
@@ -319,45 +308,38 @@ class VideoService:
                     prompt = await self.qc.rewrite_video_prompt(prompt, selected_variant.qc_report)
 
                 # Regenerate all variants with improved prompt
-                regen_output_uri = self.gcs.get_veo_output_uri(run_id) + f"scene_{scene_num}_regen{regen_round + 1}/"
-                video_gcs_uris = await self.veo.generate_videos(
+                gen_output = await self.video_provider.generate_videos(
                     prompt=prompt,
-                    reference_image_uri=storyboard_gcs_uri,
-                    output_gcs_uri=regen_output_uri,
+                    storyboard_image_path=storyboard_local,
+                    asset_image_paths=asset_image_paths,
+                    output_dir=output_dir,
                     num_variants=effective_variants,
                     seed=seed,
                     resolution=resolution,
-                    negative_prompt_extra=scene_negative,
-                    asset_image_uris=asset_image_uris,
+                    negative_prompt=scene_negative,
                     aspect_ratio=aspect_ratio,
                     duration_seconds=duration_seconds,
                     compression_quality=compression_quality,
-                    veo_model=veo_model,
+                    model_id=video_model,
                     generate_audio=generate_audio,
+                    use_reference_images=use_reference_images,
                 )
 
-                # Download and replace variants in parallel
-                regen_local_paths = []
-                for i in range(len(video_gcs_uris)):
-                    local_path = self.storage.get_path(
-                        run_id,
-                        f"variant_{i}.mp4",
-                        subdir=f"scenes/scene_{scene_num}/video_variants",
-                    )
-                    local_path.parent.mkdir(parents=True, exist_ok=True)
-                    regen_local_paths.append(local_path)
-                await asyncio.gather(*(
-                    asyncio.to_thread(self.gcs.download_to_local, uri, str(lp))
-                    for uri, lp in zip(video_gcs_uris, regen_local_paths)
-                ))
                 variants = [
-                    VideoVariant(index=i, video_path=self.storage.to_url_path(str(lp)))
-                    for i, lp in enumerate(regen_local_paths)
+                    VideoVariant(index=i, video_path=self.storage.to_url_path(lp))
+                    for i, lp in enumerate(gen_output.local_paths)
                 ]
+
+                # Prepare QC URIs for regenerated videos
+                video_qc_uris = gen_output.remote_uris
+                if not video_qc_uris:
+                    video_qc_uris = await self._upload_videos_for_qc(
+                        gen_output.local_paths, run_id, scene_num, suffix=f"_regen{regen_round + 1}",
+                    )
 
                 # Re-run QC in parallel
                 regen_qc_tasks = [
-                    self.qc.qc_video(video_uri=video_gcs_uris[i], reference_uri=product_gcs_uri)
+                    self.qc.qc_video(video_uri=video_qc_uris[i], reference_uri=product_gcs_uri)
                     for i in range(len(variants))
                 ]
                 regen_qc_results = await asyncio.gather(*regen_qc_tasks, return_exceptions=True)
@@ -387,8 +369,8 @@ class VideoService:
         )
 
         logger.info(
-            "Scene %d: selected video variant %d of %d",
-            scene_num, selected_idx, len(variants),
+            "Scene %d: selected video variant %d of %d (%s)",
+            scene_num, selected_idx, len(variants), self.video_provider.provider_name,
         )
 
         result = VideoResult(
@@ -420,7 +402,7 @@ class VideoService:
         num_variants: int | None = None,
         seed: int | None = None,
         resolution: str = "720p",
-        veo_model: str | None = None,
+        video_model: str | None = None,
         aspect_ratio: str = "9:16",
         duration_seconds: int = 8,
         compression_quality: str = "optimized",
@@ -441,7 +423,7 @@ class VideoService:
             num_variants=num_variants,
             seed=seed,
             resolution=resolution,
-            veo_model=veo_model,
+            video_model=video_model,
             aspect_ratio=aspect_ratio,
             duration_seconds=duration_seconds,
             compression_quality=compression_quality,
@@ -491,3 +473,21 @@ class VideoService:
             if path.exists():
                 return f"product_image.{ext}"
         raise FileNotFoundError(f"No product image found for run {run_id}")
+
+    async def _upload_videos_for_qc(
+        self,
+        local_paths: list[str],
+        run_id: str,
+        scene_num: int,
+        suffix: str = "",
+    ) -> list[str]:
+        """Upload local video files to GCS for Gemini-based QC."""
+        uris = await asyncio.gather(*(
+            asyncio.to_thread(
+                self.gcs.upload_file,
+                lp,
+                f"pipeline/{run_id}/scenes/scene_{scene_num}{suffix}/qc_variant_{i}.mp4",
+            )
+            for i, lp in enumerate(local_paths)
+        ))
+        return list(uris)

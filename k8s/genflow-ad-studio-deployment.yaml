@@ -2,76 +2,48 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: staging-genflow
+  name: {{ namespace }}
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: staging-genflow-ad-studio-config
-  namespace: staging-genflow
+  name: {{ configs.app.identifier }}-config
+  namespace: {{ namespace }}
   labels:
-    k8s-app: staging-genflow-ad-studio
+    k8s-app: {{ configs.app.identifier }}
 data:
-
-  GCS_BUCKET_NAME: "genflow-staging-output"
-
-  GEMINI_FLASH_MODEL: "gemini-3-flash-preview"
-
-  GEMINI_MODEL: "gemini-3-flash-preview"
-
-  IMAGE_MODEL: "gemini-3-pro-image-preview"
-
-  MAX_CONCURRENT_SCENES: "3"
-
-  MAX_REGEN_ATTEMPTS: "3"
-
-  MAX_VIDEO_VARIANTS: "4"
-
-  OUTPUT_DIR: "/app/output"
-
-  PROJECT_ID: "your-gcp-project-id"
-
-  REGION: "us-central1"
-
-  SCRIPT_DEFAULT_SCENE_COUNT: "3"
-
-  STORYBOARD_QC_THRESHOLD: "60"
-
-  VEO_MODELS: "[{\"id\":\"veo-3.1-generate-preview\",\"label\":\"Veo 3.1 Preview\",\"description\":\"Standard — Best quality\"},{\"id\":\"veo-3.1-fast-generate-preview\",\"label\":\"Veo 3.1 Fast Preview\",\"description\":\"Faster generation\"}]"
-
-  VEO_MODEL_ID: "veo-3.1-generate-preview"
-
-  VIDEO_QC_THRESHOLD: "6"
-
+{% for key, value in configs.app.env.items() %}
+  {{ key }}: {{ value | to_json }}
+{% endfor %}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: staging-genflow-ad-studio-output
-  namespace: staging-genflow
+  name: {{ configs.app.identifier }}-output
+  namespace: {{ namespace }}
   labels:
-    k8s-app: staging-genflow-ad-studio
+    k8s-app: {{ configs.app.identifier }}
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: standard
+  storageClassName: {{ configs.app.storage.storage_class }}
   resources:
     requests:
-      storage: 10Gi
+      storage: {{ configs.app.storage.size }}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: staging-genflow-ad-studio
-  namespace: staging-genflow
+  name: {{ configs.app.identifier }}
+  namespace: {{ namespace }}
   labels:
-    k8s-app: staging-genflow-ad-studio
+    k8s-app: {{ configs.app.identifier }}
 spec:
   progressDeadlineSeconds: 300
-  revisionHistoryLimit: 3
+  revisionHistoryLimit: {{ revision_history_limit }}
   selector:
     matchLabels:
-      k8s-app: staging-genflow-ad-studio
+      k8s-app: {{ configs.app.identifier }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -82,23 +54,29 @@ spec:
       annotations:
         cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
       labels:
-        k8s-app: staging-genflow-ad-studio
+        k8s-app: {{ configs.app.identifier }}
     spec:
       terminationGracePeriodSeconds: 60
-      serviceAccountName: staging-genflow-ad-studio-sa
+      serviceAccountName: {{ configs.app.identifier }}-sa
       containers:
-        - name: staging-genflow-ad-studio
-          image: 127603365779.dkr.ecr.ap-south-1.amazonaws.com/genflow-ad-studio:staging
+        - name: {{ container_identifier }}
+          image: {{ image_repo }}:{{ tag }}
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
               protocol: TCP
           envFrom:
             - configMapRef:
-                name: staging-genflow-ad-studio-config
+                name: {{ configs.app.identifier }}-config
           env:
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: "/var/secrets/gcp/key.json"
+            - name: SEEDANCE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ configs.app.identifier }}-gcp-key
+                  key: seedance-api-key
+                  optional: true
           readinessProbe:
             httpGet:
               path: /api/v1/health
@@ -127,11 +105,11 @@ spec:
             failureThreshold: 60
           resources:
             limits:
-              cpu: 1000m
-              memory: 2Gi
+              cpu: {{ configs.app.resources.limits.cpu }}
+              memory: {{ configs.app.resources.limits.memory }}
             requests:
-              cpu: 500m
-              memory: 1Gi
+              cpu: {{ configs.app.resources.requests.cpu }}
+              memory: {{ configs.app.resources.requests.memory }}
           volumeMounts:
             - name: output-data
               mountPath: /app/output
@@ -141,67 +119,65 @@ spec:
       volumes:
         - name: output-data
           persistentVolumeClaim:
-            claimName: staging-genflow-ad-studio-output
+            claimName: {{ configs.app.identifier }}-output
         - name: gcp-credentials
           secret:
-            secretName: staging-genflow-ad-studio-gcp-key
-      nodeSelector:
-        workloadType: general
+            secretName: {{ configs.app.identifier }}-gcp-key
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: staging-genflow-ad-studio
-  namespace: staging-genflow
+  name: {{ configs.app.identifier }}
+  namespace: {{ namespace }}
   labels:
-    k8s-svc: staging-genflow-ad-studio
+    k8s-svc: {{ configs.app.identifier }}
 spec:
   ports:
     - port: 80
       targetPort: 8000
       protocol: TCP
   selector:
-    k8s-app: staging-genflow-ad-studio
+    k8s-app: {{ configs.app.identifier }}
   type: ClusterIP
 ---
 apiVersion: getambassador.io/v2
 kind: Mapping
 metadata:
-  name: staging-genflow-ad-studio
-  namespace: staging-genflow
+  name: {{ configs.app.identifier }}
+  namespace: {{ namespace }}
 spec:
   bypass_auth: true
-  host: stg\.genflow\.internal
+  host: {{ configs.app.fqdn }}
   host_regex: true
   prefix: /
-  service: staging-genflow-ad-studio.staging-genflow:80
+  service: {{ configs.app.identifier }}.{{ namespace }}:80
   timeout_ms: 120000
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: staging-genflow-ad-studio
-  namespace: staging-genflow
+  name: {{ configs.app.identifier }}
+  namespace: {{ namespace }}
 spec:
   scaleTargetRef:
     kind: Deployment
-    name: staging-genflow-ad-studio
+    name: {{ configs.app.identifier }}
     apiVersion: apps/v1
-  minReplicas: 1
-  maxReplicas: 2
+  minReplicas: {{ configs.app.min_replicas }}
+  maxReplicas: {{ configs.app.max_replicas }}
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 85
+          averageUtilization: {{ configs.app.hpa.cpu_average_utilization }}
     - type: Resource
       resource:
         name: memory
         target:
           type: Utilization
-          averageUtilization: 85
+          averageUtilization: {{ configs.app.hpa.memory_average_utilization }}
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 180

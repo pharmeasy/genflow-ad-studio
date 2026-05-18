@@ -20,11 +20,13 @@ export const ETHNICITIES = [
 // ─── Age Ranges ─────────────────────────────────────────────
 export const AGE_RANGES = ['18-25', '25-35', '35-45', '45-55', '55+'];
 
-// ─── Veo Models (Video Generation) ──────────────────────────
+// ─── Video Models (Video Generation) ────────────────────────
 // Fallback used until backend config is loaded
-export const VEO_MODELS_FALLBACK = [
+export const VIDEO_MODELS_FALLBACK = [
   { id: 'veo-3.1-generate-preview', label: 'Veo 3.1 Preview', description: 'Standard — Best quality' },
   { id: 'veo-3.1-fast-generate-preview', label: 'Veo 3.1 Fast Preview', description: 'Faster generation' },
+  { id: 'seedance-2-0-260128', label: 'Seedance 2.0', description: 'Standard — Best quality' },
+  { id: 'seedance-2-0-fast-260128', label: 'Seedance 2.0 Fast', description: 'Faster generation' },
 ];
 
 // ─── Image Resolutions ──────────────────────────────────────
