@@ -1,11 +1,11 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 
 
-class VeoModelOption(BaseModel):
+class VideoModelOption(BaseModel):
     id: str
     label: str
     description: str
@@ -28,34 +28,49 @@ class Settings(BaseSettings):
     region: str = "global"
     gcs_bucket_name: str = ""
 
-    gemini_model: str = Field(
-        default="gemini-3-flash-preview",
-        validation_alias=AliasChoices("gemini_model", "GEMINI_MODEL"),
-    )
+    gemini_model: str = "gemini-3-flash-preview"
     gemini_flash_model: str = "gemini-3-flash-preview"
-    image_model: str = Field(
-        default="gemini-3-pro-image-preview",
-        validation_alias=AliasChoices("image_model", "IMAGE_MODEL"),
-    )
-    veo_model: str = Field(
-        default="veo-3.1-generate-preview",
-        validation_alias=AliasChoices("veo_model", "VEO_MODEL", "VEO_MODEL_ID"),
-    )
-    veo_fast_model: str = "veo-3.1-fast-generate-001"
+    image_model: str = "gemini-3-pro-image-preview"
     imagen_model: str = "imagen-4.0-generate-001"
 
-    veo_models: list[VeoModelOption] = [
-        VeoModelOption(
+    veo_models: list[VideoModelOption] = [
+        VideoModelOption(
             id="veo-3.1-generate-preview",
             label="Veo 3.1 Preview",
             description="Standard — Best quality",
         ),
-        VeoModelOption(
+        VideoModelOption(
             id="veo-3.1-fast-generate-preview",
             label="Veo 3.1 Fast Preview",
             description="Faster generation",
         ),
     ]
+
+    # Seedance 2.0 (ByteDance) settings
+    seedance_api_key: str = ""
+    seedance_api_base_url: str = "https://api.byteplusapi.com"
+    seedance_models: list[VideoModelOption] = [
+        VideoModelOption(
+            id="seedance-2-0-260128",
+            label="Seedance 2.0",
+            description="Standard — Best quality",
+        ),
+        VideoModelOption(
+            id="seedance-2-0-fast-260128",
+            label="Seedance 2.0 Fast",
+            description="Faster generation",
+        ),
+    ]
+
+    @property
+    def default_video_model(self) -> str:
+        """First Veo model ID, used as the default when no model is specified."""
+        return self.veo_models[0].id if self.veo_models else ""
+
+    @property
+    def default_seedance_model(self) -> str:
+        """First Seedance model ID."""
+        return self.seedance_models[0].id if self.seedance_models else ""
 
     output_dir: str = "output"
     storyboard_qc_threshold: int = 60
